@@ -2,10 +2,17 @@
 #include <math.h>
 #include <iostream>
 #include "bs.h"
+//#include <boost/math/distributions/normal.hpp>
 
 double normalCDF(double x) // Phi(-∞, x) aka N(x)
 {
     return std::erfc(-x / std::sqrt(2)) / 2;
+}
+
+double normalPDF(double x)
+{
+    static const float inv_sqrt_2pi = 0.3989422804014327;
+    return inv_sqrt_2pi / std::exp(-0.5f * pow(x,2));
 }
  
 namespace qob
@@ -56,43 +63,121 @@ namespace qob
 
         double Pricer::getCallDelta()
         {
-            return 0.0;
+            /*
+            Returns the Call option delta 
+            */
+            if ((volatility == 0) || (daysToExpiration == 0))
+            {
+    			return underlyingPrice > strikePrice ? 1 : 0.0;
+            }
+            if (strikePrice == 0)
+                throw std::overflow_error("The strike price cannot be zero");
+            else
+                return normalCDF(_d1_);
         }
         double Pricer::getPutDelta()
         {
-            return 0.0;
+            /*
+            Returns the Put option delta
+            */
+            if ((volatility == 0) || (daysToExpiration == 0))
+            {
+    			return underlyingPrice < strikePrice ? -1 : 0.0;
+            }
+            if (strikePrice == 0)
+                throw std::overflow_error("The strike price cannot be zero");
+            else
+                return -normalCDF(-_d1_);
         }
         double Pricer::getCallDelta2()
         {
-            return 0.0;
+	        /*
+            Returns the dual call delta
+            */
+            if ((volatility == 0) || (daysToExpiration == 0))
+            {
+                return  underlyingPrice < strikePrice? 1.0: 0.0;
+
+            }
+            if (strikePrice == 0)
+                throw std::overflow_error("The strike price cannot be zero");
+            else
+                return -normalCDF(_d2_) * exp(-(interestRate * daysToExpiration));
         }
         double Pricer::getPutDelta2()
         {
-            return 0.0;
+            /*
+            Returns the dual put delta
+            */
+            if ((volatility == 0) || (daysToExpiration == 0))
+            {
+                return  underlyingPrice > strikePrice? -1.0: 0.0;
+
+            }
+            if (strikePrice == 0)
+                throw std::overflow_error("The strike price cannot be zero");
+            else
+                return normalCDF(-_d2_) * exp(-(interestRate * daysToExpiration));
         }
         double Pricer::getCallTheta()
         {
-            return 0.0;
+            /*
+            Returns the call option theta
+            */
+            auto _b_ = exp(-(interestRate * daysToExpiration));
+            auto call = -underlyingPrice * normalPDF(_d1_) * volatility / 
+                    (2 * pow(daysToExpiration,0.5)) - interestRate * 
+                    strikePrice * _b_ * normalCDF(_d2_);
+            return call / 365;
         }
         double Pricer::getPutTheta()
         {
-            return 0.0;
+            /*
+            Returns the call option theta
+            */
+            auto _b_ = exp(-(interestRate * daysToExpiration));
+            auto put = -underlyingPrice * normalPDF(_d1_) * volatility / 
+                    (2 * pow(daysToExpiration,0.5)) + interestRate * 
+                    strikePrice * _b_ * normalCDF(-_d2_);
+            return put / 365;
         }
         double Pricer::getCallRho()
         {
-            return 0.0;
+            /*
+            Returns the call option rho
+            */
+            auto _b_ = exp(-(interestRate * daysToExpiration));
+            return strikePrice * daysToExpiration * _b_ * 
+                normalCDF(_d2_) / 100;
         }
         double Pricer::getPutRho()
         {
-            return 0.0;
+            /*
+            Returns the put option rho
+            */
+            auto _b_ = exp(-(interestRate * daysToExpiration));
+            return -strikePrice * daysToExpiration * _b_ * 
+                normalCDF(-_d2_) / 100;
         }
         double Pricer::getVega()
         {
-            return 0.0;
+            /*
+            Returns the option vega
+            */
+            if ((volatility == 0) || (daysToExpiration == 0))
+                return 0.0;
+            if (strikePrice == 0)
+                throw std::overflow_error("The strike price cannot be zero");
+            else
+                return underlyingPrice * normalPDF(_d1_) * 
+                        pow(daysToExpiration,0.5) / 100;
         }
         double Pricer::getGamma()
         {
-            return 0.0;
+            /*
+            Returns the option gamma
+            */
+            return normalPDF(_d1_) / (underlyingPrice * _a_);
         }
     }
 }
